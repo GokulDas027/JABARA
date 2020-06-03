@@ -1,30 +1,44 @@
 package com.lloc.sceneformcodelab
 
-import android.animation.Animator
+import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.Point
 import android.net.Uri
 import android.os.Bundle
+import android.os.Environment
+import android.os.Handler
+import android.os.HandlerThread
 import android.view.Menu
 import android.view.MenuItem
+import android.view.PixelCopy
 import android.view.View
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.FileProvider
 import com.google.android.material.snackbar.Snackbar
 import com.google.ar.core.*
 import com.google.ar.sceneform.AnchorNode
+import com.google.ar.sceneform.ArSceneView
 import com.google.ar.sceneform.FrameTime
-import com.google.ar.sceneform.HitTestResult
 import com.google.ar.sceneform.animation.ModelAnimator
 import com.google.ar.sceneform.rendering.AnimationData
 import com.google.ar.sceneform.rendering.ModelRenderable
 import com.google.ar.sceneform.ux.ArFragment
 import com.google.ar.sceneform.ux.TransformableNode
 import kotlinx.android.synthetic.main.activity_main.*
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
 import java.lang.ref.WeakReference
+import java.text.SimpleDateFormat
+import java.util.*
 
 
+@Suppress("RECEIVER_NULLABILITY_MISMATCH_BASED_ON_JAVA_ANNOTATIONS", "DEPRECATION")
 class MainActivity : AppCompatActivity() {
     private var fragment = ArFragment()
     private val pointer = PointerDrawable()
@@ -50,6 +64,7 @@ class MainActivity : AppCompatActivity() {
             }
         modelLoader = ModelLoader(WeakReference(this))
         initializeGallery()
+        fab.setOnClickListener { takePhoto()}
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -128,7 +143,7 @@ class MainActivity : AppCompatActivity() {
         // add andy to the view on tap
         val andy = ImageView(this)
         andy.setImageResource(R.drawable.droid_thumb)
-        andy.setContentDescription("andy")
+        andy.contentDescription = "andy"
         andy.setOnClickListener { view: View? ->
             addObject(
                 Uri.parse("andy.sfb")
@@ -139,7 +154,7 @@ class MainActivity : AppCompatActivity() {
         // add cabin to the view on tap
         val cabin = ImageView(this)
         cabin.setImageResource(R.drawable.cabin_thumb)
-        cabin.setContentDescription("cabin")
+        cabin.contentDescription = "cabin"
         cabin.setOnClickListener { view: View? ->
             addObject(
                 Uri.parse("Cabin.sfb")
@@ -207,9 +222,9 @@ class MainActivity : AppCompatActivity() {
             val animationData: AnimationData = renderable.getAnimationData(i)
         }
         val animator = ModelAnimator(renderable.getAnimationData(0), renderable)
-        animator.start()
+//        animator.start() //start animation on placing the object itself
         node.setOnTapListener{_, _ ->
-            print("onNodeTap recoreded")
+            print("onNodeTap recorded")
             togglePauseAndResume(animator)
         }
     }
@@ -228,6 +243,81 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun generateFilename(): String {
+        val date: String =
+            SimpleDateFormat("yyyyMMddHHmmss", Locale.getDefault()).format(Date())
+        return if (android.os.Build.VERSION.SDK.toInt() < 29 ) {
+            Environment.getExternalStoragePublicDirectory(
+                Environment.DIRECTORY_PICTURES
+            ).toString() + File.separator.toString() + "Sceneform/" + date + "_screenshot.jpg"
+        } else {
+            getExternalFilesDir(
+                Environment.DIRECTORY_PICTURES
+            ).toString() + File.separator.toString() + "Sceneform/" + date + "_screenshot.jpg"
+        }
+    }
+
+    @Throws(IOException::class)
+    private fun saveBitmapToDisk(bitmap: Bitmap, filename: String) {
+        val out = File(filename)
+        if (!out.parentFile.exists()) {
+            out.parentFile.mkdirs()
+        }
+        try {
+            FileOutputStream(filename).use { outputStream ->
+                ByteArrayOutputStream().use { outputData ->
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputData)
+                    outputData.writeTo(outputStream)
+                    outputStream.flush()
+                    outputStream.close()
+                }
+            }
+        } catch (ex: IOException) {
+            throw IOException("Failed to save bitmap to disk", ex)
+        }
+    }
+
+    private fun takePhoto() {
+        val filename: String = generateFilename()
+        val view: ArSceneView = fragment.arSceneView
+
+        // Create a bitmap the size of the scene view.
+        val bitmap: Bitmap = Bitmap.createBitmap(view.width, view.height,
+            Bitmap.Config.ARGB_8888)
+
+        // handler thread to offload the processing of the image.
+        val handlerThread = HandlerThread("PixelCopier")
+        handlerThread.start()
+
+        // make the request to copy
+        PixelCopy.request(view,bitmap, {copyResult :Int ->
+            if(copyResult == PixelCopy.SUCCESS) {
+                try {
+                    saveBitmapToDisk(bitmap, filename)
+                } catch (e: IOException) {
+                    Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show()
+                }
+                val snackbar: Snackbar = Snackbar.make(findViewById(android.R.id.content),
+                    "Photo saved", Snackbar.LENGTH_LONG)
+                snackbar.setAction("Open in Photos") {
+                    val photoFile = File(filename)
+
+                    val photoURI: Uri = FileProvider.getUriForFile(this,
+                        this.packageName+".ar.codelab.name.provider",
+                        photoFile)
+                    val intent = Intent(Intent.ACTION_VIEW, photoURI)
+                    intent.setDataAndType(photoURI, "image/*")
+                    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    startActivity(intent)
+                }
+                snackbar.show()
+            } else {
+                Toast.makeText(this, "Failed to Capture", Toast.LENGTH_LONG).show()
+            }
+            handlerThread.quitSafely()
+        }, Handler(handlerThread.looper))
+    }
+
     fun onException(throwable: Throwable) {
         val builder: AlertDialog.Builder = AlertDialog.Builder(this)
         builder.setMessage(throwable.message)
@@ -237,3 +327,4 @@ class MainActivity : AppCompatActivity() {
         return
     }
 }
+
