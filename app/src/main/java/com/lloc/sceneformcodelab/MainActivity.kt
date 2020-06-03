@@ -1,5 +1,6 @@
 package com.lloc.sceneformcodelab
 
+import android.animation.Animator
 import android.graphics.Point
 import android.net.Uri
 import android.os.Bundle
@@ -14,6 +15,9 @@ import com.google.android.material.snackbar.Snackbar
 import com.google.ar.core.*
 import com.google.ar.sceneform.AnchorNode
 import com.google.ar.sceneform.FrameTime
+import com.google.ar.sceneform.HitTestResult
+import com.google.ar.sceneform.animation.ModelAnimator
+import com.google.ar.sceneform.rendering.AnimationData
 import com.google.ar.sceneform.rendering.ModelRenderable
 import com.google.ar.sceneform.ux.ArFragment
 import com.google.ar.sceneform.ux.TransformableNode
@@ -191,12 +195,43 @@ class MainActivity : AppCompatActivity() {
         node.setParent(anchorNode)
         fragment.arSceneView.scene.addChild(anchorNode)
         node.select()
+        startAnimation(node, renderable)
+    }
+
+    // Animation not working, moved on to next, will check later
+    private fun startAnimation(node: TransformableNode, renderable: ModelRenderable?) {
+        if (renderable == null || renderable.animationDataCount == 0) {
+            return
+        }
+        for (i in 0 until renderable.animationDataCount) {
+            val animationData: AnimationData = renderable.getAnimationData(i)
+        }
+        val animator = ModelAnimator(renderable.getAnimationData(0), renderable)
+        animator.start()
+        node.setOnTapListener{_, _ ->
+            print("onNodeTap recoreded")
+            togglePauseAndResume(animator)
+        }
+    }
+
+    private fun togglePauseAndResume(animator: ModelAnimator) {
+        when {
+            animator.isPaused -> {
+                animator.resume()
+            }
+            animator.isStarted -> {
+                animator.pause()
+            }
+            else -> {
+                animator.start()
+            }
+        }
     }
 
     fun onException(throwable: Throwable) {
         val builder: AlertDialog.Builder = AlertDialog.Builder(this)
         builder.setMessage(throwable.message)
-            .setTitle("Codelab error!")
+            .setTitle("App error!")
         val dialog: AlertDialog = builder.create()
         dialog.show()
         return
