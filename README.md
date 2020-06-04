@@ -6,10 +6,10 @@ A Basic ARCore & Sceneform application for **android** written in **Kotlin** bas
 ## This Project Covers
 1. ARCore Plane Detection
 2. Adding AR Objects to the Scene
-(adding AR Objects to the app through the sceneform plugin can be found at the codelab)
+> adding AR Objects to the app through the sceneform plugin can be found at the codelab
 3. Animation on AR Objects
 4. Capture Image in ARCore 
-(trust me, capturing image from an ARCore app isn't straigh forward as we thought)
+> trust me, capturing image from an ARCore app isn't straigh forward as we thought
 5. Save the captured image to Persistent Storage
 
 AR is the future.
